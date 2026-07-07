@@ -18,23 +18,23 @@ public class TransactionService {
 
     public TransactionService(AccountRepository accountRepository,
                               TransactionRepository transactionRepository) {
-
         this.accountRepository = accountRepository;
         this.transactionRepository = transactionRepository;
     }
 
-    public String deposit(String accountNumber,BigDecimal amount){
+    public String deposit(String accountNumber, BigDecimal amount) {
 
         Account account = accountRepository.findByAccountNumber(accountNumber)
-                .orElseThrow(() ->
-                        new RuntimeException("Account Not Found"));
+                .orElseThrow(() -> new RuntimeException("Account Not Found"));
+
+        if (account.getBalance() == null) {
+            account.setBalance(BigDecimal.ZERO);
+        }
 
         account.setBalance(account.getBalance().add(amount));
-
         accountRepository.save(account);
 
         Transaction transaction = new Transaction();
-
         transaction.setAccount(account);
         transaction.setAmount(amount);
         transaction.setTransactionType("DEPOSIT");
@@ -46,22 +46,23 @@ public class TransactionService {
         return "Amount Deposited Successfully";
     }
 
-    public String withdraw(String accountNumber,BigDecimal amount){
+    public String withdraw(String accountNumber, BigDecimal amount) {
 
         Account account = accountRepository.findByAccountNumber(accountNumber)
-                .orElseThrow(() ->
-                        new RuntimeException("Account Not Found"));
+                .orElseThrow(() -> new RuntimeException("Account Not Found"));
 
-        if (account.getBalance().compareTo(amount) >= 0){
+        if (account.getBalance() == null) {
+            account.setBalance(BigDecimal.ZERO);
+        }
+
+        if (account.getBalance().compareTo(amount) < 0) {
             throw new RuntimeException("Insufficient Balance");
         }
 
         account.setBalance(account.getBalance().subtract(amount));
-
         accountRepository.save(account);
 
         Transaction transaction = new Transaction();
-
         transaction.setAccount(account);
         transaction.setAmount(amount);
         transaction.setTransactionType("WITHDRAW");
@@ -73,38 +74,54 @@ public class TransactionService {
         return "Amount Withdrawn Successfully";
     }
 
-    public String transfer(String from,String to,BigDecimal amount){
+    public String transfer(String from, String to, BigDecimal amount) {
 
         Account sender = accountRepository.findByAccountNumber(from)
-                .orElseThrow(() ->
-                        new RuntimeException("Sender Account Not Found"));
+                .orElseThrow(() -> new RuntimeException("Sender Account Not Found"));
 
         Account receiver = accountRepository.findByAccountNumber(to)
-                .orElseThrow(() ->
-                        new RuntimeException("Receiver Account Not Found"));
+                .orElseThrow(() -> new RuntimeException("Receiver Account Not Found"));
+
+        if (sender.getBalance() == null) {
+            sender.setBalance(BigDecimal.ZERO);
+        }
+        if (receiver.getBalance() == null) {
+            receiver.setBalance(BigDecimal.ZERO);
+        }
 
         if (sender.getBalance().compareTo(amount) < 0) {
             throw new RuntimeException("Insufficient Balance");
         }
 
         sender.setBalance(sender.getBalance().subtract(amount));
+        receiver.setBalance(receiver.getBalance().add(amount));
 
-        receiver.setBalance(
-                receiver.getBalance().add(BigDecimal.ONE.subtract(amount))
-        );
         accountRepository.save(sender);
         accountRepository.save(receiver);
 
+        Transaction debit = new Transaction();
+        debit.setAccount(sender);
+        debit.setAmount(amount);
+        debit.setTransactionType("TRANSFER_OUT");
+        debit.setStatus("SUCCESS");
+        debit.setTransactionDate(LocalDateTime.now());
+        transactionRepository.save(debit);
+
+        Transaction credit = new Transaction();
+        credit.setAccount(receiver);
+        credit.setAmount(amount);
+        credit.setTransactionType("TRANSFER_IN");
+        credit.setStatus("SUCCESS");
+        credit.setTransactionDate(LocalDateTime.now());
+        transactionRepository.save(credit);
+
         return "Transfer Successful";
     }
-
-    public List<Transaction> getTransactionHistory(String accountNumber){
+    public List<Transaction> getTransactionHistory(String accountNumber) {
 
         Account account = accountRepository.findByAccountNumber(accountNumber)
-                .orElseThrow(() ->
-                        new RuntimeException("Account Not Found"));
+                .orElseThrow(() -> new RuntimeException("Account Not Found"));
 
         return transactionRepository.findByAccount(account);
     }
-
 }

@@ -1,11 +1,13 @@
 package com.verinite.Atm_Application.util;
 
 import com.verinite.Atm_Application.entity.User;
+import com.verinite.Atm_Application.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Service;
+
 
 import java.util.List;
 
@@ -24,7 +26,8 @@ public class CustomUserDetailsService implements UserDetailsService {
         return new org.springframework.security.core.userdetails.User(
                 user.getUsername(),
                 user.getPassword(),
-                List.of(new SimpleGrantedAuthority(user.getRole().getName()))
+                List.of(new SimpleGrantedAuthority(user.getRole()))
+
         );
     }
 }
