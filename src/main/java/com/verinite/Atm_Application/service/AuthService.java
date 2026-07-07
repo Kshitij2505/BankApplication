@@ -1,18 +1,19 @@
 package com.verinite.Atm_Application.service;
 
 import com.verinite.Atm_Application.dto.LoginRequest;
+import com.verinite.Atm_Application.dto.LoginResponse;
 import com.verinite.Atm_Application.dto.RegisterRequest;
 import com.verinite.Atm_Application.entity.Role;
 import com.verinite.Atm_Application.entity.User;
 import com.verinite.Atm_Application.repository.RoleRepository;
 import com.verinite.Atm_Application.repository.UserRepository;
-
+import com.verinite.Atm_Application.util.CustomUserDetailsService;
 import com.verinite.Atm_Application.util.JwtUtil;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-
 
 @Service
 public class AuthService {
@@ -22,50 +23,71 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtUtil jwtUtil;
+    private final CustomUserDetailsService userDetailsService;
 
     public AuthService(UserRepository userRepository,
                        RoleRepository roleRepository,
                        PasswordEncoder passwordEncoder,
                        AuthenticationManager authenticationManager,
-                       JwtUtil jwtUtil) {
+                       JwtUtil jwtUtil,
+                       CustomUserDetailsService userDetailsService) {
 
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.jwtUtil = jwtUtil;
+        this.userDetailsService = userDetailsService;
     }
 
     public String register(RegisterRequest request) {
 
-        if(userRepository.existsByUsername(request.getUsername())) {
+        if (userRepository.existsByUsername(request.getUsername())) {
             throw new RuntimeException("Username already exists");
         }
 
-        Role role = roleRepository.findByName("ROLE_CUSTOMER")
-                .orElseThrow(() -> new RuntimeException("Role not found"));
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new RuntimeException("Email already exists");
+        }
 
-        User user = new User();
+        if (userRepository.existsByMobile(request.getMobile())) {
+            throw new RuntimeException("Mobile already exists");
+        }
 
-        user.setUsername(request.getUsername());
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setEnabled(true);
-        user.setRole(request.getRole());
+        Role role = roleRepository.findByRoleName("CUSTOMER")
+                .orElseThrow(() -> new RuntimeException("CUSTOMER role not found"));
+
+        User user = User.builder()
+                .username(request.getUsername())
+                .password(passwordEncoder.encode(request.getPassword()))
+                .email(request.getEmail())
+                .mobile(request.getMobile())
+                .enabled(true)
+                .role(role)
+                .build();
 
         userRepository.save(user);
 
         return "User Registered Successfully";
     }
 
-    public String login(LoginRequest request){
+    public LoginResponse login(LoginRequest request) {
 
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         request.getUsername(),
-                        request.getPassword())
+                        request.getPassword()
+                )
         );
 
-        return jwtUtil.generateToken(request.getUsername());
-    }
+        UserDetails userDetails =
+                userDetailsService.loadUserByUsername(request.getUsername());
 
+        String token = jwtUtil.generateToken(userDetails);
+
+        return new LoginResponse(
+                token,
+                "Login Successful"
+        );
+    }
 }
